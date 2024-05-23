@@ -15,24 +15,30 @@
  * =============================================================================
  */
 
-import {TRAINING_DATA} from 'https://storage.googleapis.com/jmstore/TensorFlowJS/EdX/TrainingData/real-estate-data.js';
+// Generate input numbers from 1 to 20 inclusive.
+const INPUTS = [];
 
-// Input feature pairs (House size, Number of Bedrooms)
-const INPUTS = TRAINING_DATA.inputs;
+for (let n = 1; n <= 20; n++) {
 
-// Current listed house prices in dollars given their features above (target output values you want to predict).
-const OUTPUTS = TRAINING_DATA.outputs;
+    INPUTS.push(n);
 
-// Shuffle the two arrays to remove any order, but do so in the same way so 
-// inputs still match outputs indexes.
-tf.util.shuffleCombo(INPUTS, OUTPUTS);
+}
 
-// Input feature Array of Arrays needs 2D tensor to store.
-const INPUTS_TENSOR = tf.tensor2d(INPUTS);
+// Generate Outputs that are simply each input multiplied by itself,
+// to generate some non linear data.
+const OUTPUTS = [];
+
+for (let n = 0; n < INPUTS.length; n++) {
+
+    OUTPUTS.push(INPUTS[n] * INPUTS[n]);
+
+}
+
+// Input feature Array is 1 dimensional.
+const INPUTS_TENSOR = tf.tensor1d(INPUTS);
 
 // Output can stay 1 dimensional.
 const OUTPUTS_TENSOR = tf.tensor1d(OUTPUTS);
-
 
 // Function to take a Tensor and normalize values
 // with respect to each column of values contained in that Tensor.
@@ -78,42 +84,40 @@ INPUTS_TENSOR.dispose();
 // Now actually create and define model architecture.
 const model = tf.sequential();
 
-// We will use one dense layer with 1 neuron (units) and an input of 
-// 2 input feaature values (representing house size and number of rooms).
-model.add(tf.layers.dense({inputShape: [2], units: 1}));
+// We will use one dense layer with 1 neuron (units) and an input of 
+// 1 input feature values.
+model.add(tf.layers.dense({inputShape: [1], units: 1}));
 
 model.summary();
 
+// Choose a learning rate that is suitable for the data we are using.
+const LEARNING_RATE = 0.01;
+const OPTIMIZER = tf.train.sgd(LEARNING_RATE);
+
 train();
 
-
 async function train() {
-  // Choose a learning rate that is suitable for the data we are using.
-  const LEARNING_RATE = 0.01;
-  
   // Compile the model with the defined learning rate and specify
   // our loss function to use.
   model.compile({
-    optimizer: tf.train.sgd(LEARNING_RATE),
+    optimizer: OPTIMIZER,
     loss: 'meanSquaredError'
   });
-
-  // Finally do the training itself 
+  
+  // Finally do the training itself 
   let results = await model.fit(FEATURE_RESULTS.NORMALIZED_VALUES, OUTPUTS_TENSOR, {
-    validationSplit: 0.15, // Take aside 15% of the data to use for validation testing.
-    shuffle: true,         // Ensure data is shuffled again before using each epoch.
-    batchSize: 64,         // As we have a lot of training data, batch size is set to 64.
-    epochs: 10             // Go over the data 10 times!
+  callbacks: {
+    onEpochEnd: logProgress
+  },
+    shuffle: true, // Ensure data is shuffled in case it was in an order
+    batchSize: 2,
+    epochs: 200   // Go over the data 200 times!
   });
   
   OUTPUTS_TENSOR.dispose();
   FEATURE_RESULTS.NORMALIZED_VALUES.dispose();
   
   console.log("Average error loss: " + Math.sqrt(results.history.loss[results.history.loss.length - 1]));
-  console.log("Average validation error loss: " + Math.sqrt(results.history.val_loss[results.history.val_loss.length - 1]));
-    
-  // Once trained we can evaluate the model.
-  evaluate();
 }
 
 
@@ -132,3 +136,14 @@ function evaluate() {
   
   console.log(tf.memory().numTensors);
 }
+
+function logProgress(epoch, logs) {
+  console.log('Data for epoch ' + epoch, Math.sqrt(logs.loss));
+  if (epoch == 70) {
+    OPTIMIZER.setLearningRate(LEARNING_RATE / 2);
+  }
+}
+
+// DESCARGAR EL MODELO
+
+// await model.save('downloads://miModelo')
